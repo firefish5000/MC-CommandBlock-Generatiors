@@ -1,0 +1,240 @@
+#!/usr/bin/perl
+# To Expand Format the book again use
+# cat INPUT_BOOK | perl -e  'use feature qw{say};my $line=<STDIN>; my $tabs=0; foreach my $c ($line =~ m/./g) { if ($c eq q<{> || $c eq q<[>) {say ($c); $tabs++; print(qq{\t} x $tabs); next; } elsif ($c eq q<,>) {print ($c, qq{\n} . (qq{\t} x $tabs) ); next} elsif ($c eq q<}> || $c eq q<]>) {$tabs--; print (qq{\n} . (qq{\t} x $tabs) . $c ); next; } else {print ($c); }; }'
+
+# To Unformat the book, run
+# cat INPUT_BOOK | sed -e 's/^\s+//' | td -d '\n' ; echo
+use strict;
+use warnings;
+use feature qw{say switch};
+use experimental qw{switch};
+my $SelfMod=0; # NOTE that we dont change the running script, just the file we were compiled from.
+my $SELFH; # Our Scripts File Handeler
+sub SelfModInit {
+	if ($SelfMod) {
+		my $pos=tell(DATA);
+		seek(DATA,0,0); # DATA tag contains entir scipt. But its already seeked past.
+		my $selfrh; # Read only self Handeler
+		my $dataless_self; # Our Old Script with data stripped
+		local $/ = "\n__DATA__\n"; # Stop Reading here
+		chomp($dataless_self = <DATA>);
+		seek(DATA,$pos,0);
+		open($SELFH, '>', __FILE__) or die qq{Cannot Open self for writting};
+		# No Turning back now. Better hope no errors occure!
+		print $SELFH ($dataless_self,"\n__DATA__\n");
+	}
+}
+sub SelfModPrint {
+	if ($SelfMod) {
+		print $SELFH (@_);
+	}
+}
+sub PrintAndMod { # Modify self and print to terminal
+	print (@_);
+	SelfModPrint(@_);
+}
+sub SelfModClose {
+	if ($SelfMod) {
+		close($SELFH);
+	}
+}
+sub CommandHeader {
+	print 'give @a[score_A_GiveBook_min=1] written_book 1 0 ';
+}
+sub FormatStatus {
+	my $wanted=lc(shift//'');
+	my $pos=tell(DATA);
+	my $status;
+	READ_AHEAD:
+	while (my $line=<DATA>){
+		if ($. >= 2) {
+			$status="formated";
+			if ($wanted eq 'unformated') {
+				die "WE ARE ALREADY FORMATED! (if not, ensure there are no trailing lines." .
+				" After DATA tag, only one line should exst)";
+			}
+			last READ_AHEAD;
+		}
+	};
+	if ($. == 1) {
+		$status="unformated";
+		if ($wanted eq 'formated') {
+			die "WE ARE NOT CURRENTLY FORMATED";
+		}
+	} elsif ($. < 1) {
+		$status="no data";
+		if ($wanted ne '') {
+			die "NO BOOK DATA GIVEN";
+		}
+	}
+	seek(DATA,$pos,0);
+	return $status;
+}
+sub Unformat {
+	FormatStatus('formated');
+	SelfModInit();
+	while (my $line=<DATA>) {
+		chomp($line);
+		$line =~ s{^\s*}{};
+		PrintAndMod($line);
+	}
+	SelfModClose();
+	say('');
+}
+sub Reformat {
+	FormatStatus('unformated');
+	SelfModInit();
+	while (my $line=<DATA>) {
+		 my $tabs=0;
+		 foreach my $c ($line =~ m/./g) {
+			if ($c eq q<{> || $c eq q<[>) {
+				PrintAndMod ($c . qq{\n});
+				$tabs++;
+				PrintAndMod(qq{\t} x $tabs);
+				next;
+			} elsif ($c eq q<,>) {
+				PrintAndMod ($c, qq{\n} . (qq{\t} x $tabs) );
+				next;
+			} elsif ($c eq q<}> || $c eq q<]>) {
+				$tabs--;
+				PrintAndMod (qq{\n} . (qq{\t} x $tabs) . $c );
+				next;
+			} else {
+				PrintAndMod ($c);
+			};
+		}
+	}
+	say('');
+	SelfModClose();
+}
+sub PrintCurrent() {
+	while (my $line=<DATA>) {
+		print ($line);
+	}
+}
+sub PrintCommand {
+	CommandHeader();
+	my $status = FormatStatus();
+	if ($status eq 'formated') {
+		Unformat();
+	} elsif ($status eq 'unformated') {
+		PrintCurrent();
+	} else {
+		die "NO BOOK DATA";
+	}
+}
+given ((defined($ARGV[0])) ? lc($ARGV[0]) : undef) {
+	when('reformat') {
+		Reformat();
+	}
+	when('unformat') {
+		Unformat();
+	}
+	when('command') {
+		PrintCommand();
+	}
+	when('reformatself') {
+		$SelfMod=1;
+		Reformat();
+	}
+	when('unformatself') {
+		$SelfMod=1;
+		Unformat();
+	}
+	when('current') {
+		PrintCurrent();
+	}
+	when(undef) {
+		PrintCommand();
+	}
+	default {
+		print << "HEREHELP";
+		Usage: $0 Reformat | Unformat | Command | ReformatSelf | UnformatSelf | Current
+
+		Case Insisitive, Reformats/Unformates Minecraft book located in
+			the __DATA__ tag below the script.
+		Note, (Re/Un)FormatSelf will cause the scipt to modify itself!
+		By Default we print command version.
+HEREHELP
+	}
+}
+__DATA__
+{
+	pages:[
+		"[
+			\"\",
+			{
+				\"text\":\"Dynamic Pattern/Clone Tool:\n\n\"
+			},
+			{
+				\"text\":\"Add Clone Buffer\n\",
+				\"clickEvent\":{
+					\"action\":\"run_command\",
+					\"value\":\"/trigger A_AddCopyBuff set 1\"
+				}
+			},
+			{
+				\"text\":\"Add Control Buffer\n\",
+				\"clickEvent\":{
+					\"action\":\"run_command\",
+					\"value\":\"/trigger A_AddContBuff set 1\"
+				}
+			},
+			{
+				\"text\":\"Expand Selection\n\",
+				\"clickEvent\":{
+					\"action\":\"run_command\",
+					\"value\":\"/trigger A_ExtndCopyBuff set 1\"
+				}
+			},
+			{
+				\"text\":\"Stop Expanding Selection\n\",
+				\"clickEvent\":{
+					\"action\":\"run_command\",
+					\"value\":\"/trigger A_ExtndCopyBuff set 0\"
+				}
+			},
+			{
+				\"text\":\"Look Add Clone Buffer\n\",
+				\"clickEvent\":{
+					\"action\":\"run_command\",
+					\"value\":\"/trigger A_AddCopyBuffF set 1\"
+				}
+			},
+			{
+				\"text\":\"Stop Look Clone Buffer\n\",
+				\"clickEvent\":{
+					\"action\":\"run_command\",
+					\"value\":\"/trigger A_AddCopyBuffF set 0\"
+				}
+			},
+			{
+				\"text\":\"Del Copy Buffer\n\",
+				\"clickEvent\":{
+					\"action\":\"run_command\",
+					\"value\":\"/trigger A_DelCopyBuff set 1\"
+				}
+			},
+			{
+				\"text\":\"Del All Copy Buff\",
+				\"clickEvent\":{
+					\"action\":\"run_command\",
+					\"value\":\"/trigger A_DelAllCopyBuff set 1\"
+				}
+			},
+			{
+				\"text\":\"\nAdd 5x1x5 Clone Pos\nAdd 5x5x1 Clone Pos\nAdd 1x5x5 Clone Pos\nSet Control Pos\n\n \"
+			}
+		]",
+		"{
+			\"text\":\"Simple Commands:\nCreative\nSurvival\n\nMap Making:\nCenter Self\nMarker Add\nMarker Del\nMarker Hop Up\nMarker Move\n \"
+		}"
+	],
+	title:"Guide Book",
+	author:FireFish5000,
+	display:{
+		Lore:[
+			"Shortcuts to Common Commands"
+		]
+	}
+}
